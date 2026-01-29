@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TTS Pro: Озвучувач + Статистика</title>
-    <!-- Підключаємо шрифти та іконки -->
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -66,7 +65,6 @@
             font-weight: 600;
         }
 
-        /* Стилі текстового поля */
         .input-wrapper {
             position: relative;
         }
@@ -94,7 +92,6 @@
             box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
         }
 
-        /* --- БЛОК СТАТИСТИКИ --- */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -133,10 +130,9 @@
         .time-avg { color: var(--primary) !important; }
         .time-fast { color: #059669 !important; }
 
-        /* Контроли */
         .controls-grid {
             display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             gap: 15px;
             background: rgba(255,255,255,0.5);
             padding: 15px;
@@ -145,7 +141,7 @@
 
         @media (max-width: 700px) {
             .controls-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: 1fr 1fr;
             }
         }
 
@@ -167,7 +163,6 @@
             height: 40px;
         }
 
-        /* Кнопки */
         .action-bar {
             display: flex;
             gap: 15px;
@@ -230,6 +225,13 @@
             margin: 15px 0;
             font-size: 0.9rem;
             color: #92400e;
+            text-align: center;
+        }
+
+        .alert.info {
+            background: #dbeafe;
+            border-color: #3b82f6;
+            color: #1e40af;
         }
     </style>
 </head>
@@ -245,7 +247,6 @@
         <textarea id="text-input" placeholder="Введіть текст для аналізу та озвучення..."></textarea>
     </div>
 
-    <!-- БЛОК СТАТИСТИКИ -->
     <div class="stats-grid">
         <div class="stat-card">
             <h4><i class="fas fa-align-left"></i> Обсяг</h4>
@@ -274,11 +275,20 @@
         </div>
     </div>
 
+    <div id="lang-alert" class="alert info" style="display: none;"></div>
+
     <div class="controls-grid">
+        <div class="control-group">
+            <label><i class="fas fa-globe"></i> Мова</label>
+            <select id="lang-select" disabled>
+                <option value="auto">🔄 Автовизначення</option>
+            </select>
+        </div>
+
         <div class="control-group">
             <label><i class="fas fa-microphone-alt"></i> Голос</label>
             <select id="voice-select" disabled>
-                <option>Завантаження голосів...</option>
+                <option>Завантаження...</option>
             </select>
         </div>
         
@@ -300,19 +310,20 @@
     </div>
     
     <div class="footer-note">
-        Використовуйте <b>Google Chrome</b> для найкращої якості на Ubuntu/Linux.<br>
-        Розрахунок часу є орієнтовним і залежить від довжини слів.
+        💡 Додаток автоматично визначає мову тексту.<br>
+        Використовуйте <b>Google Chrome</b> для найкращої якості.
     </div>
 </div>
 
 <script>
     const synth = window.speechSynthesis;
     const textInput = document.getElementById('text-input');
+    const langSelect = document.getElementById('lang-select');
     const voiceSelect = document.getElementById('voice-select');
     const playBtn = document.getElementById('play-btn');
     const stopBtn = document.getElementById('stop-btn');
+    const langAlert = document.getElementById('lang-alert');
     
-    // Елементи статистики
     const statWords = document.getElementById('stat-words');
     const statChars = document.getElementById('stat-chars');
     const timeSlow = document.getElementById('time-slow');
@@ -321,8 +332,8 @@
 
     let voices = [];
     let voicesLoaded = false;
+    let voicesByLang = {};
 
-    // Налаштування для bookmarklet
     window.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
         const textFromUrl = params.get('text');
@@ -332,7 +343,6 @@
         }
     });
 
-    // --- ФУНКЦІЇ КАЛЬКУЛЯТОРА ---
     function formatTime(seconds) {
         if (seconds < 60) return `00:${seconds.toString().padStart(2, '0')}`;
         const m = Math.floor(seconds / 60);
@@ -361,97 +371,181 @@
         timeSlow.textContent = formatTime(secSlow);
         timeAvg.textContent = formatTime(secAvg);
         timeFast.textContent = formatTime(secFast);
+
+        if (voicesLoaded && langSelect.value === 'auto') {
+            updateVoicesForText();
+        }
     }
 
     textInput.addEventListener('input', calculateStats);
 
-    // --- ФУНКЦІЇ ОЗВУЧЕННЯ (ВИПРАВЛЕНО) ---
-    
+    function detectLanguage(text) {
+        if (!text || text.trim() === '') return 'en';
+        
+        const cyrillic = (text.match(/[а-яіїєґА-ЯІЇЄҐ]/g) || []).length;
+        const latin = (text.match(/[a-zA-Z]/g) || []).length;
+        const ukrainian = (text.match(/[іїєґІЇЄҐ]/g) || []).length;
+        const russian = (text.match(/[ыэъЫЭЪ]/g) || []).length;
+        
+        if (cyrillic > latin * 2) {
+            if (ukrainian > 0) return 'uk';
+            if (russian > 0) return 'ru';
+            return 'ru';
+        }
+        
+        return 'en';
+    }
+
+    function getLanguageName(code) {
+        const names = {
+            'uk': 'Українська 🇺🇦',
+            'ru': 'Російська 🇷🇺',
+            'en': 'Англійська 🇬🇧',
+            'de': 'Німецька 🇩🇪',
+            'fr': 'Французька 🇫🇷',
+            'es': 'Іспанська 🇪🇸',
+            'it': 'Італійська 🇮🇹',
+            'pl': 'Польська 🇵🇱',
+            'cs': 'Чеська 🇨🇿'
+        };
+        return names[code] || code.toUpperCase();
+    }
+
     function populateVoiceList() {
         voices = synth.getVoices();
         
         console.log('Завантажено голосів:', voices.length);
+        console.log('Доступні голоси:', voices.map(v => `${v.name} (${v.lang})`));
         
         if (voices.length === 0) {
-            console.warn('Голоси ще не завантажені, спробую пізніше...');
+            console.warn('Голоси ще не завантажені');
             return;
         }
 
         voicesLoaded = true;
-        document.getElementById('voice-count').textContent = `Голосів: ${voices.length}`;
-        voiceSelect.innerHTML = '';
-        voiceSelect.disabled = false;
         
-        // Сортування голосів (українські та англійські першими)
-        voices.sort((a, b) => {
-            const getRank = (lang) => {
-                if (lang.includes('uk')) return 3;
-                if (lang.includes('ru')) return 2;
-                if (lang.includes('en')) return 1;
-                return 0;
-            };
-            return getRank(b.lang) - getRank(a.lang);
+        voicesByLang = {};
+        voices.forEach(voice => {
+            const langCode = voice.lang.split('-')[0].toLowerCase();
+            if (!voicesByLang[langCode]) {
+                voicesByLang[langCode] = [];
+            }
+            voicesByLang[langCode].push(voice);
         });
 
-        let defaultSelected = false;
-        voices.forEach((voice) => {
+        console.log('Мови з голосами:', Object.keys(voicesByLang));
+        
+        langSelect.innerHTML = '<option value="auto">🔄 Автовизначення</option>';
+        Object.keys(voicesByLang).sort().forEach(langCode => {
+            const option = document.createElement('option');
+            option.value = langCode;
+            option.textContent = getLanguageName(langCode);
+            langSelect.appendChild(option);
+        });
+        langSelect.disabled = false;
+
+        document.getElementById('voice-count').textContent = `Голосів: ${voices.length}`;
+        
+        playBtn.disabled = false;
+        stopBtn.disabled = false;
+
+        updateVoicesForText();
+    }
+
+    function updateVoicesForText() {
+        const text = textInput.value.trim();
+        let targetLang;
+
+        if (langSelect.value === 'auto') {
+            targetLang = detectLanguage(text);
+            console.log('Визначена мова:', targetLang);
+        } else {
+            targetLang = langSelect.value;
+        }
+
+        if (text && langSelect.value === 'auto') {
+            let availableVoices = voicesByLang[targetLang] || [];
+            if (availableVoices.length === 0) {
+                if (targetLang === 'uk') {
+                    availableVoices = voicesByLang['ru'] || [];
+                    if (availableVoices.length > 0) {
+                        langAlert.innerHTML = '⚠️ Українські голоси недоступні. Використовую російські голоси.';
+                        langAlert.className = 'alert';
+                        langAlert.style.display = 'block';
+                        targetLang = 'ru';
+                    }
+                }
+            } else {
+                langAlert.innerHTML = `✓ Визначена мова: ${getLanguageName(targetLang)}`;
+                langAlert.className = 'alert info';
+                langAlert.style.display = 'block';
+            }
+        } else {
+            langAlert.style.display = 'none';
+        }
+
+        populateVoiceSelect(targetLang);
+    }
+
+    function populateVoiceSelect(targetLang) {
+        voiceSelect.innerHTML = '';
+        
+        let availableVoices = voicesByLang[targetLang] || [];
+        
+        if (availableVoices.length === 0) {
+            console.warn(`Немає голосів для мови ${targetLang}, показую всі`);
+            availableVoices = voices;
+        }
+
+        if (availableVoices.length === 0) {
+            voiceSelect.innerHTML = '<option>Немає доступних голосів</option>';
+            voiceSelect.disabled = true;
+            return;
+        }
+
+        voiceSelect.disabled = false;
+        availableVoices.forEach((voice, index) => {
             const option = document.createElement('option');
             option.textContent = `${voice.name} (${voice.lang})`;
             option.setAttribute('data-name', voice.name);
             option.setAttribute('data-lang', voice.lang);
-            
-            // Автоматично вибираємо український голос
-            if (!defaultSelected && (voice.lang.includes('uk') || voice.lang.includes('ru'))) {
-                option.selected = true;
-                defaultSelected = true;
-            }
-            
+            if (index === 0) option.selected = true;
             voiceSelect.appendChild(option);
         });
-
-        // Якщо не знайшли uk/ru, вибираємо перший
-        if (!defaultSelected && voices.length > 0) {
-            voiceSelect.selectedIndex = 0;
-        }
-
-        // Активуємо кнопки після завантаження голосів
-        playBtn.disabled = false;
-        stopBtn.disabled = false;
     }
 
-    // КРИТИЧНО: Чекаємо на завантаження голосів
     function loadVoices() {
         return new Promise((resolve) => {
             let voices = synth.getVoices();
             if (voices.length !== 0) {
                 resolve(voices);
             } else {
-                // Якщо голоси не завантажені, чекаємо на подію
                 synth.addEventListener('voiceschanged', () => {
                     voices = synth.getVoices();
                     resolve(voices);
                 }, { once: true });
                 
-                // Додатковий таймаут для старих браузерів
                 setTimeout(() => {
                     voices = synth.getVoices();
                     if (voices.length !== 0) {
                         resolve(voices);
                     }
-                }, 500);
+                }, 1000);
             }
         });
     }
 
-    // Ініціалізація
     loadVoices().then(() => {
         populateVoiceList();
     });
 
-    // Додаткова перевірка (для деяких браузерів)
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = populateVoiceList;
     }
+
+    langSelect.addEventListener('change', () => {
+        updateVoicesForText();
+    });
 
     function speak() {
         if (!voicesLoaded) {
@@ -472,34 +566,59 @@
         }
 
         const utterThis = new SpeechSynthesisUtterance(text);
+        
         const selectedOption = voiceSelect.selectedOptions[0];
         if (selectedOption) {
             const selectedVoiceName = selectedOption.getAttribute('data-name');
             const voice = voices.find(v => v.name === selectedVoiceName);
             if (voice) {
                 utterThis.voice = voice;
+                console.log('Використовую голос:', voice.name, voice.lang);
             }
+        }
+
+        if (langSelect.value !== 'auto') {
+            utterThis.lang = langSelect.value;
+        } else {
+            const detectedLang = detectLanguage(text);
+            utterThis.lang = detectedLang;
         }
 
         utterThis.pitch = parseFloat(document.getElementById('pitch').value);
         utterThis.rate = parseFloat(document.getElementById('rate').value);
 
         utterThis.onstart = () => {
-            playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
+            playBtn.innerHTML = '<i class="fas fa-pause"></i> Читаю...';
             playBtn.disabled = true;
+            console.log('Озвучення розпочато');
         };
         
         utterThis.onend = () => {
             playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
             playBtn.disabled = false;
+            console.log('Озвучення завершено');
         };
 
         utterThis.onerror = (event) => {
             console.error('Помилка озвучення:', event);
             playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
             playBtn.disabled = false;
-            alert('❌ Помилка озвучення. Спробуйте інший голос.');
+            
+            if (event.error === 'not-allowed') {
+                alert('❌ Браузер заблокував озвучення. Переконайтеся, що дозволили звук для цього сайту.');
+            } else if (event.error === 'network') {
+                alert('❌ Помилка мережі. Перевірте підключення до інтернету.');
+            } else {
+                alert(`❌ Помилка: ${event.error}. Спробуйте інший голос або мову.`);
+            }
         };
+
+        console.log('Починаю озвучення з параметрами:', {
+            lang: utterThis.lang,
+            voice: utterThis.voice?.name,
+            rate: utterThis.rate,
+            pitch: utterThis.pitch
+        });
 
         synth.speak(utterThis);
     }
@@ -518,7 +637,6 @@
         playBtn.disabled = false;
     });
 
-    // Оновлення повзунків
     document.getElementById('rate').addEventListener('input', (e) => {
         document.getElementById('rate-val').textContent = parseFloat(e.target.value).toFixed(1);
     });
@@ -527,17 +645,23 @@
         document.getElementById('pitch-val').textContent = parseFloat(e.target.value).toFixed(1);
     });
 
-    // Кнопка MP3
     document.getElementById('download-btn').addEventListener('click', () => {
         const text = textInput.value.trim();
         if (text === '') {
             alert('⚠️ Введіть текст для завантаження');
             return;
         }
+        
+        let ttsLang = langSelect.value;
+        if (ttsLang === 'auto') {
+            ttsLang = detectLanguage(text);
+        }
+        
         if (text.length > 200) {
             alert("⚠️ Для довгих текстів завантаження може бути обрізане.");
         }
-        window.open(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=uk&client=tw-ob`, '_blank');
+        
+        window.open(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=${ttsLang}&client=tw-ob`, '_blank');
     });
 </script>
 
