@@ -383,38 +383,24 @@
     }
 
     function speak() {
-        // 1. Спочатку зупиняємо будь-яке поточне мовлення
-        synth.cancel();
-
+        if (synth.speaking) {
+            synth.cancel();
+            setTimeout(speak, 300);
+            return;
+        }
         if (textInput.value !== '') {
-            // Створюємо об'єкт фрази
             const utterThis = new SpeechSynthesisUtterance(textInput.value);
-            
-            // Знаходимо обраний голос
             const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
             const voice = voices.find(v => v.name === selectedOption);
-
-            if (voice) {
-                utterThis.voice = voice;
-                // ВАЖЛИВО: Явно задаємо мову озвучення, щоб вона збігалася з голосом
-                utterThis.lang = voice.lang; 
-            }
+            if(voice) utterThis.voice = voice;
 
             utterThis.pitch = document.getElementById('pitch').value;
             utterThis.rate = document.getElementById('rate').value;
 
-            // Візуальні ефекти кнопок
             utterThis.onstart = () => playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
             utterThis.onend = () => playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
-            utterThis.onerror = (e) => {
-                console.error("Помилка озвучення:", e);
-                playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
-            };
 
-            // Невелика затримка перед запуском (хак для Chrome на Linux)
-            setTimeout(() => {
-                synth.speak(utterThis);
-            }, 50);
+            synth.speak(utterThis);
         }
     }
 
