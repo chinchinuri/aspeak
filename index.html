@@ -94,7 +94,7 @@
             box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
         }
 
-        /* --- БЛОК СТАТИСТИКИ (НОВЕ) --- */
+        /* --- БЛОК СТАТИСТИКИ --- */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -129,9 +129,9 @@
             color: #888;
         }
 
-        .time-slow { color: #d97706 !important; } /* Orange */
-        .time-avg { color: var(--primary) !important; } /* Blue */
-        .time-fast { color: #059669 !important; } /* Green */
+        .time-slow { color: #d97706 !important; }
+        .time-avg { color: var(--primary) !important; }
+        .time-fast { color: #059669 !important; }
 
         /* Контроли */
         .controls-grid {
@@ -191,24 +191,28 @@
         }
 
         button:active { transform: scale(0.97); }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         .btn-play {
             background: var(--primary);
             box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
         }
-        .btn-play:hover { background: #4338ca; }
+        .btn-play:hover:not(:disabled) { background: #4338ca; }
 
         .btn-stop {
             background: #ef4444;
             box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
         }
-        .btn-stop:hover { background: #dc2626; }
+        .btn-stop:hover:not(:disabled) { background: #dc2626; }
 
         .btn-download {
             background: #10b981;
             box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
         }
-        .btn-download:hover { background: #059669; }
+        .btn-download:hover:not(:disabled) { background: #059669; }
 
         .footer-note {
             margin-top: 20px;
@@ -217,6 +221,16 @@
             text-align: center;
             line-height: 1.6;
         }
+
+        .alert {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 12px;
+            border-radius: 12px;
+            margin: 15px 0;
+            font-size: 0.9rem;
+            color: #92400e;
+        }
     </style>
 </head>
 <body>
@@ -224,7 +238,7 @@
 <div class="app-container">
     <header>
         <h1><i class="fas fa-bullhorn"></i> TTS Master</h1>
-        <div class="status-badge" id="voice-count">...</div>
+        <div class="status-badge" id="voice-count">Завантаження...</div>
     </header>
 
     <div class="input-wrapper">
@@ -263,7 +277,9 @@
     <div class="controls-grid">
         <div class="control-group">
             <label><i class="fas fa-microphone-alt"></i> Голос</label>
-            <select id="voice-select"></select>
+            <select id="voice-select" disabled>
+                <option>Завантаження голосів...</option>
+            </select>
         </div>
         
         <div class="control-group">
@@ -278,8 +294,8 @@
     </div>
 
     <div class="action-bar">
-        <button class="btn-play" id="play-btn"><i class="fas fa-play"></i> Читати</button>
-        <button class="btn-stop" id="stop-btn"><i class="fas fa-stop"></i> Стоп</button>
+        <button class="btn-play" id="play-btn" disabled><i class="fas fa-play"></i> Читати</button>
+        <button class="btn-stop" id="stop-btn" disabled><i class="fas fa-stop"></i> Стоп</button>
         <button class="btn-download" id="download-btn"><i class="fas fa-download"></i> MP3</button>
     </div>
     
@@ -303,13 +319,16 @@
     const timeAvg = document.getElementById('time-avg');
     const timeFast = document.getElementById('time-fast');
 
+    let voices = [];
+    let voicesLoaded = false;
+
     // Налаштування для bookmarklet
     window.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
         const textFromUrl = params.get('text');
         if (textFromUrl) {
             textInput.value = textFromUrl;
-            calculateStats(); // Одразу рахуємо, якщо текст прийшов з URL
+            calculateStats();
         }
     });
 
@@ -325,19 +344,16 @@
         const text = textInput.value;
         const chars = text.length;
         
-        // Видаляємо зайві пробіли для точного підрахунку слів
         const cleanText = text.trim();
         const words = cleanText === '' ? 0 : cleanText.split(/\s+/).length;
 
         statChars.textContent = chars;
         statWords.textContent = words;
 
-        // Середні показники (слів на хвилину)
         const wpmSlow = 100;
         const wpmAvg = 130;
         const wpmFast = 160;
 
-        // Рахуємо секунди
         const secSlow = words > 0 ? (words / wpmSlow) * 60 : 0;
         const secAvg = words > 0 ? (words / wpmAvg) * 60 : 0;
         const secFast = words > 0 ? (words / wpmFast) * 60 : 0;
@@ -347,82 +363,181 @@
         timeFast.textContent = formatTime(secFast);
     }
 
-    // Слухаємо кожне натискання клавіші для оновлення статистики
     textInput.addEventListener('input', calculateStats);
 
-    // --- ФУНКЦІЇ ОЗВУЧЕННЯ ---
-    let voices = [];
-
+    // --- ФУНКЦІЇ ОЗВУЧЕННЯ (ВИПРАВЛЕНО) ---
+    
     function populateVoiceList() {
         voices = synth.getVoices();
+        
+        console.log('Завантажено голосів:', voices.length);
+        
+        if (voices.length === 0) {
+            console.warn('Голоси ще не завантажені, спробую пізніше...');
+            return;
+        }
+
+        voicesLoaded = true;
         document.getElementById('voice-count').textContent = `Голосів: ${voices.length}`;
         voiceSelect.innerHTML = '';
+        voiceSelect.disabled = false;
         
+        // Сортування голосів (українські та англійські першими)
         voices.sort((a, b) => {
             const getRank = (lang) => {
-                if (lang.includes('uk')) return 2;
+                if (lang.includes('uk')) return 3;
+                if (lang.includes('ru')) return 2;
                 if (lang.includes('en')) return 1;
                 return 0;
             };
             return getRank(b.lang) - getRank(a.lang);
         });
 
+        let defaultSelected = false;
         voices.forEach((voice) => {
             const option = document.createElement('option');
-            option.textContent = `${voice.name.slice(0, 30)}... (${voice.lang})`;
+            option.textContent = `${voice.name} (${voice.lang})`;
             option.setAttribute('data-name', voice.name);
             option.setAttribute('data-lang', voice.lang);
-            if (voice.lang === 'uk-UA' && !voiceSelect.value) option.selected = true;
+            
+            // Автоматично вибираємо український голос
+            if (!defaultSelected && (voice.lang.includes('uk') || voice.lang.includes('ru'))) {
+                option.selected = true;
+                defaultSelected = true;
+            }
+            
             voiceSelect.appendChild(option);
+        });
+
+        // Якщо не знайшли uk/ru, вибираємо перший
+        if (!defaultSelected && voices.length > 0) {
+            voiceSelect.selectedIndex = 0;
+        }
+
+        // Активуємо кнопки після завантаження голосів
+        playBtn.disabled = false;
+        stopBtn.disabled = false;
+    }
+
+    // КРИТИЧНО: Чекаємо на завантаження голосів
+    function loadVoices() {
+        return new Promise((resolve) => {
+            let voices = synth.getVoices();
+            if (voices.length !== 0) {
+                resolve(voices);
+            } else {
+                // Якщо голоси не завантажені, чекаємо на подію
+                synth.addEventListener('voiceschanged', () => {
+                    voices = synth.getVoices();
+                    resolve(voices);
+                }, { once: true });
+                
+                // Додатковий таймаут для старих браузерів
+                setTimeout(() => {
+                    voices = synth.getVoices();
+                    if (voices.length !== 0) {
+                        resolve(voices);
+                    }
+                }, 500);
+            }
         });
     }
 
-    populateVoiceList();
+    // Ініціалізація
+    loadVoices().then(() => {
+        populateVoiceList();
+    });
+
+    // Додаткова перевірка (для деяких браузерів)
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = populateVoiceList;
     }
 
     function speak() {
+        if (!voicesLoaded) {
+            alert('⏳ Голоси ще завантажуються, спробуйте через секунду...');
+            return;
+        }
+
         if (synth.speaking) {
             synth.cancel();
             setTimeout(speak, 300);
             return;
         }
-        if (textInput.value !== '') {
-            const utterThis = new SpeechSynthesisUtterance(textInput.value);
-            const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
-            const voice = voices.find(v => v.name === selectedOption);
-            if(voice) utterThis.voice = voice;
-
-            utterThis.pitch = document.getElementById('pitch').value;
-            utterThis.rate = document.getElementById('rate').value;
-
-            utterThis.onstart = () => playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
-            utterThis.onend = () => playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
-
-            synth.speak(utterThis);
+        
+        const text = textInput.value.trim();
+        if (text === '') {
+            alert('⚠️ Введіть текст для озвучення');
+            return;
         }
+
+        const utterThis = new SpeechSynthesisUtterance(text);
+        const selectedOption = voiceSelect.selectedOptions[0];
+        if (selectedOption) {
+            const selectedVoiceName = selectedOption.getAttribute('data-name');
+            const voice = voices.find(v => v.name === selectedVoiceName);
+            if (voice) {
+                utterThis.voice = voice;
+            }
+        }
+
+        utterThis.pitch = parseFloat(document.getElementById('pitch').value);
+        utterThis.rate = parseFloat(document.getElementById('rate').value);
+
+        utterThis.onstart = () => {
+            playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
+            playBtn.disabled = true;
+        };
+        
+        utterThis.onend = () => {
+            playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+            playBtn.disabled = false;
+        };
+
+        utterThis.onerror = (event) => {
+            console.error('Помилка озвучення:', event);
+            playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+            playBtn.disabled = false;
+            alert('❌ Помилка озвучення. Спробуйте інший голос.');
+        };
+
+        synth.speak(utterThis);
     }
 
     playBtn.addEventListener('click', () => {
-        if(synth.paused) synth.resume();
-        else speak();
+        if (synth.paused) {
+            synth.resume();
+        } else {
+            speak();
+        }
     });
 
     stopBtn.addEventListener('click', () => {
         synth.cancel();
         playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+        playBtn.disabled = false;
     });
 
     // Оновлення повзунків
-    document.getElementById('rate').addEventListener('input', (e) => document.getElementById('rate-val').textContent = e.target.value);
-    document.getElementById('pitch').addEventListener('input', (e) => document.getElementById('pitch-val').textContent = e.target.value);
+    document.getElementById('rate').addEventListener('input', (e) => {
+        document.getElementById('rate-val').textContent = parseFloat(e.target.value).toFixed(1);
+    });
+    
+    document.getElementById('pitch').addEventListener('input', (e) => {
+        document.getElementById('pitch-val').textContent = parseFloat(e.target.value).toFixed(1);
+    });
 
     // Кнопка MP3
     document.getElementById('download-btn').addEventListener('click', () => {
-        const text = textInput.value;
-        if(text.length > 200) alert("⚠️ Для довгих текстів завантаження може бути обрізане.");
-        if(text) window.open(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=uk&client=tw-ob`, '_blank');
+        const text = textInput.value.trim();
+        if (text === '') {
+            alert('⚠️ Введіть текст для завантаження');
+            return;
+        }
+        if (text.length > 200) {
+            alert("⚠️ Для довгих текстів завантаження може бути обрізане.");
+        }
+        window.open(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=uk&client=tw-ob`, '_blank');
     });
 </script>
 
