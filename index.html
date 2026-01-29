@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Pro: Озвучувач + Статистика</title>
+    <!-- Підключаємо шрифти та іконки -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --secondary: #ec4899;
+            --bg-gradient: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            --glass-bg: rgba(255, 255, 255, 0.90);
+            --text-main: #1f2937;
+            --card-bg: rgba(255, 255, 255, 0.7);
+        }
+
+        body {
+            font-family: 'Montserrat', sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 20px;
+            color: var(--text-main);
+        }
+
+        .app-container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            border-radius: 24px;
+            padding: 2rem;
+            width: 100%;
+            max-width: 800px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(0,0,0,0.05);
+            padding-bottom: 15px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            background: -webkit-linear-gradient(0deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            font-size: 0.8rem;
+            padding: 5px 12px;
+            border-radius: 20px;
+            background: rgba(255,255,255,0.8);
+            color: #555;
+            font-weight: 600;
+        }
+
+        /* Стилі текстового поля */
+        .input-wrapper {
+            position: relative;
+        }
+
+        textarea {
+            width: 100%;
+            height: 180px;
+            padding: 15px;
+            border: 2px solid transparent;
+            border-radius: 16px;
+            font-family: inherit;
+            font-size: 1.05rem;
+            line-height: 1.5;
+            resize: vertical;
+            outline: none;
+            box-sizing: border-box;
+            background: rgba(255,255,255,0.6);
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        textarea:focus {
+            background: white;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1);
+        }
+
+        /* --- БЛОК СТАТИСТИКИ (НОВЕ) --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            padding: 12px;
+            border-radius: 12px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.6);
+        }
+
+        .stat-card h4 {
+            margin: 0 0 5px 0;
+            font-size: 0.8rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .stat-card .sub-value {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .time-slow { color: #d97706 !important; } /* Orange */
+        .time-avg { color: var(--primary) !important; } /* Blue */
+        .time-fast { color: #059669 !important; } /* Green */
+
+        /* Контроли */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 15px;
+            background: rgba(255,255,255,0.5);
+            padding: 15px;
+            border-radius: 16px;
+        }
+
+        @media (max-width: 700px) {
+            .controls-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: #444;
+        }
+
+        select, input[type="range"] {
+            width: 100%;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            background: white;
+            cursor: pointer;
+            height: 40px;
+        }
+
+        /* Кнопки */
+        .action-bar {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+        }
+
+        button {
+            flex: 1;
+            padding: 16px;
+            border: none;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: transform 0.1s, box-shadow 0.2s, background 0.3s;
+            color: white;
+        }
+
+        button:active { transform: scale(0.97); }
+
+        .btn-play {
+            background: var(--primary);
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.3);
+        }
+        .btn-play:hover { background: #4338ca; }
+
+        .btn-stop {
+            background: #ef4444;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+        .btn-stop:hover { background: #dc2626; }
+
+        .btn-download {
+            background: #10b981;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+        }
+        .btn-download:hover { background: #059669; }
+
+        .footer-note {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: #666;
+            text-align: center;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <header>
+        <h1><i class="fas fa-bullhorn"></i> TTS Master</h1>
+        <div class="status-badge" id="voice-count">...</div>
+    </header>
+
+    <div class="input-wrapper">
+        <textarea id="text-input" placeholder="Введіть текст для аналізу та озвучення..."></textarea>
+    </div>
+
+    <!-- БЛОК СТАТИСТИКИ -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <h4><i class="fas fa-align-left"></i> Обсяг</h4>
+            <div class="value" id="stat-words">0</div>
+            <div class="sub-value">Слів</div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fas fa-font"></i> Символи</h4>
+            <div class="value" id="stat-chars">0</div>
+            <div class="sub-value">З пробілами</div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fas fa-hourglass-start"></i> Повільно</h4>
+            <div class="value time-slow" id="time-slow">00:00</div>
+            <div class="sub-value">~100 слів/хв</div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fas fa-hourglass-half"></i> Середній</h4>
+            <div class="value time-avg" id="time-avg">00:00</div>
+            <div class="sub-value">~130 слів/хв</div>
+        </div>
+        <div class="stat-card">
+            <h4><i class="fas fa-hourglass-end"></i> Швидко</h4>
+            <div class="value time-fast" id="time-fast">00:00</div>
+            <div class="sub-value">~160 слів/хв</div>
+        </div>
+    </div>
+
+    <div class="controls-grid">
+        <div class="control-group">
+            <label><i class="fas fa-microphone-alt"></i> Голос</label>
+            <select id="voice-select"></select>
+        </div>
+        
+        <div class="control-group">
+            <label><i class="fas fa-tachometer-alt"></i> Швидкість: <span id="rate-val">1.0</span></label>
+            <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1">
+        </div>
+
+        <div class="control-group">
+            <label><i class="fas fa-music"></i> Тон: <span id="pitch-val">1.0</span></label>
+            <input type="range" id="pitch" min="0" max="2" value="1" step="0.1">
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <button class="btn-play" id="play-btn"><i class="fas fa-play"></i> Читати</button>
+        <button class="btn-stop" id="stop-btn"><i class="fas fa-stop"></i> Стоп</button>
+        <button class="btn-download" id="download-btn"><i class="fas fa-download"></i> MP3</button>
+    </div>
+    
+    <div class="footer-note">
+        Використовуйте <b>Google Chrome</b> для найкращої якості на Ubuntu/Linux.<br>
+        Розрахунок часу є орієнтовним і залежить від довжини слів.
+    </div>
+</div>
+
+<script>
+    const synth = window.speechSynthesis;
+    const textInput = document.getElementById('text-input');
+    const voiceSelect = document.getElementById('voice-select');
+    const playBtn = document.getElementById('play-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    
+    // Елементи статистики
+    const statWords = document.getElementById('stat-words');
+    const statChars = document.getElementById('stat-chars');
+    const timeSlow = document.getElementById('time-slow');
+    const timeAvg = document.getElementById('time-avg');
+    const timeFast = document.getElementById('time-fast');
+
+    // Налаштування для bookmarklet
+    window.addEventListener('DOMContentLoaded', () => {
+        const params = new URLSearchParams(window.location.search);
+        const textFromUrl = params.get('text');
+        if (textFromUrl) {
+            textInput.value = textFromUrl;
+            calculateStats(); // Одразу рахуємо, якщо текст прийшов з URL
+        }
+    });
+
+    // --- ФУНКЦІЇ КАЛЬКУЛЯТОРА ---
+    function formatTime(seconds) {
+        if (seconds < 60) return `00:${seconds.toString().padStart(2, '0')}`;
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+
+    function calculateStats() {
+        const text = textInput.value;
+        const chars = text.length;
+        
+        // Видаляємо зайві пробіли для точного підрахунку слів
+        const cleanText = text.trim();
+        const words = cleanText === '' ? 0 : cleanText.split(/\s+/).length;
+
+        statChars.textContent = chars;
+        statWords.textContent = words;
+
+        // Середні показники (слів на хвилину)
+        const wpmSlow = 100;
+        const wpmAvg = 130;
+        const wpmFast = 160;
+
+        // Рахуємо секунди
+        const secSlow = words > 0 ? (words / wpmSlow) * 60 : 0;
+        const secAvg = words > 0 ? (words / wpmAvg) * 60 : 0;
+        const secFast = words > 0 ? (words / wpmFast) * 60 : 0;
+
+        timeSlow.textContent = formatTime(secSlow);
+        timeAvg.textContent = formatTime(secAvg);
+        timeFast.textContent = formatTime(secFast);
+    }
+
+    // Слухаємо кожне натискання клавіші для оновлення статистики
+    textInput.addEventListener('input', calculateStats);
+
+    // --- ФУНКЦІЇ ОЗВУЧЕННЯ ---
+    let voices = [];
+
+    function populateVoiceList() {
+        voices = synth.getVoices();
+        document.getElementById('voice-count').textContent = `Голосів: ${voices.length}`;
+        voiceSelect.innerHTML = '';
+        
+        voices.sort((a, b) => {
+            const getRank = (lang) => {
+                if (lang.includes('uk')) return 2;
+                if (lang.includes('en')) return 1;
+                return 0;
+            };
+            return getRank(b.lang) - getRank(a.lang);
+        });
+
+        voices.forEach((voice) => {
+            const option = document.createElement('option');
+            option.textContent = `${voice.name.slice(0, 30)}... (${voice.lang})`;
+            option.setAttribute('data-name', voice.name);
+            option.setAttribute('data-lang', voice.lang);
+            if (voice.lang === 'uk-UA' && !voiceSelect.value) option.selected = true;
+            voiceSelect.appendChild(option);
+        });
+    }
+
+    populateVoiceList();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = populateVoiceList;
+    }
+
+    function speak() {
+        // 1. Спочатку зупиняємо будь-яке поточне мовлення
+        synth.cancel();
+
+        if (textInput.value !== '') {
+            // Створюємо об'єкт фрази
+            const utterThis = new SpeechSynthesisUtterance(textInput.value);
+            
+            // Знаходимо обраний голос
+            const selectedOption = voiceSelect.selectedOptions[0].getAttribute('data-name');
+            const voice = voices.find(v => v.name === selectedOption);
+
+            if (voice) {
+                utterThis.voice = voice;
+                // ВАЖЛИВО: Явно задаємо мову озвучення, щоб вона збігалася з голосом
+                utterThis.lang = voice.lang; 
+            }
+
+            utterThis.pitch = document.getElementById('pitch').value;
+            utterThis.rate = document.getElementById('rate').value;
+
+            // Візуальні ефекти кнопок
+            utterThis.onstart = () => playBtn.innerHTML = '<i class="fas fa-pause"></i> Пауза';
+            utterThis.onend = () => playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+            utterThis.onerror = (e) => {
+                console.error("Помилка озвучення:", e);
+                playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+            };
+
+            // Невелика затримка перед запуском (хак для Chrome на Linux)
+            setTimeout(() => {
+                synth.speak(utterThis);
+            }, 50);
+        }
+    }
+
+    playBtn.addEventListener('click', () => {
+        if(synth.paused) synth.resume();
+        else speak();
+    });
+
+    stopBtn.addEventListener('click', () => {
+        synth.cancel();
+        playBtn.innerHTML = '<i class="fas fa-play"></i> Читати';
+    });
+
+    // Оновлення повзунків
+    document.getElementById('rate').addEventListener('input', (e) => document.getElementById('rate-val').textContent = e.target.value);
+    document.getElementById('pitch').addEventListener('input', (e) => document.getElementById('pitch-val').textContent = e.target.value);
+
+    // Кнопка MP3
+    document.getElementById('download-btn').addEventListener('click', () => {
+        const text = textInput.value;
+        if(text.length > 200) alert("⚠️ Для довгих текстів завантаження може бути обрізане.");
+        if(text) window.open(`https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=uk&client=tw-ob`, '_blank');
+    });
+</script>
+
+</body>
+</html>
